@@ -1,24 +1,26 @@
 use dialoguer::{theme::ColorfulTheme, Completion, Input};
 
 fn main() {
-    println!("Type to search. Use Tab to complete, Up/Down arrows to navigate suggestions.");
+    println!("Type to search. Use Tab to see suggestions, Up/Down arrows to navigate suggestions.");
 
-    let completion = MyCompletion::default();
+    let completion = MyCompletion::new();
 
-    Input::<String>::with_theme(&ColorfulTheme::default())
-        .with_prompt("fruit")
+    let input = Input::<String>::with_theme(&ColorfulTheme::default())
+        .with_prompt("")
         .completion_with(&completion)
         .interact_text()
         .unwrap();
+
+    println!("You selected: {}", input);
 }
 
 struct MyCompletion {
     options: Vec<String>,
 }
 
-impl Default for MyCompletion {
-    fn default() -> Self {
-        MyCompletion {
+impl MyCompletion {
+    fn new() -> Self {
+        Self {
             options: vec![
                 "orange".to_string(),
                 "apple".to_string(),
@@ -31,6 +33,15 @@ impl Default for MyCompletion {
 }
 
 impl Completion for MyCompletion {
+    fn get(&self, input: &str) -> Option<String> {
+        let suggestions = self.get_suggestions(input);
+        if suggestions.len() == 1 {
+            Some(suggestions[0].clone())
+        } else {
+            None
+        }
+    }
+
     fn get_suggestions(&self, input: &str) -> Vec<String> {
         self.options
             .iter()
@@ -38,6 +49,4 @@ impl Completion for MyCompletion {
             .cloned()
             .collect()
     }
-
-    // The default implementation from the trait will be used for get()
 }
