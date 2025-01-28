@@ -554,9 +554,7 @@ where
                                 }
 
                                 // Insert the selected completion
-                                for ch in selected.chars() {
-                                    chars.push(ch);
-                                }
+                                chars.extend(selected.chars());
                                 position = chars.len();
 
                                 // Display the new input
