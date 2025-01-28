@@ -329,7 +329,7 @@ impl<T> Input<'_, T> {
             term.move_cursor_right(col)?;
 
             if let Some(suggestion) = self.current_suggestions.get(0) {
-                if suggestion.len() - col > 0 {
+                if suggestion.len() > col {
                     // hack: when suggestion wraps 2 lines, we can't clear line 2 as line 2 has content that we don't want to clear.
                     // so idea is to insert a dot at the end of the line and clear it.
                     term.write_str(".")?;
