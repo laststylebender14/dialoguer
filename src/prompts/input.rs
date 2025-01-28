@@ -415,6 +415,12 @@ where
                             iter::once(&chr).chain(chars[position..].iter()).collect();
                         term.write_str(&tail)?;
                         term.move_cursor_left(tail.chars().count() - 1)?;
+
+                        // move to the next line if we are on the last column
+                        if (position + prompt_len) % term.size().1 as usize == 0 {
+                            term.move_cursor_down(1)?;
+                            term.move_cursor_left(term.size().1 as usize)?;
+                        }
                         term.flush()?;
                     }
                     Key::ArrowLeft if position > 0 => {
@@ -542,7 +548,7 @@ where
                                 // final output will be: this is file @file
                                 // Find the position of the last trigger character
                                 // Find the position of the last trigger character in the chars vector
-                                
+
                                 // TODO: we've hardcoded this, make it dynamic depending on the trigger character
                                 if let Some(pos) = chars.iter().rposition(|&c| c == '@' || c == '/')
                                 {
@@ -620,8 +626,7 @@ where
                     Key::Enter if !self.current_suggestions.is_empty() => {
                         let selected = &self.current_suggestions[self.completion_selection];
 
-                        if let Some(pos) = chars.iter().rposition(|&c| c == '@' || c == '/')
-                        {
+                        if let Some(pos) = chars.iter().rposition(|&c| c == '@' || c == '/') {
                             // Calculate the number of characters to remove
                             let chars_to_remove = chars.len() - pos; // This will include the trigger character and the input after it
                             term.clear_chars(chars_to_remove)?; // Clear only the relevant characters
