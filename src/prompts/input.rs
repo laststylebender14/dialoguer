@@ -1,6 +1,7 @@
 use std::{
     cmp::Ordering,
-    io, iter,
+    io::{self},
+    iter,
     str::FromStr,
     sync::{Arc, Mutex},
 };
@@ -65,6 +66,10 @@ pub struct Input<'a, T> {
     history: Option<Arc<Mutex<&'a mut dyn History<T>>>>,
     #[cfg(feature = "completion")]
     completion: Option<&'a dyn Completion>,
+    #[cfg(feature = "completion")]
+    completion_selection: usize,
+    #[cfg(feature = "completion")]
+    current_suggestions: Vec<String>,
 }
 
 impl<T> Default for Input<'static, T> {
@@ -164,6 +169,10 @@ impl<'a, T> Input<'a, T> {
             history: None,
             #[cfg(feature = "completion")]
             completion: None,
+            #[cfg(feature = "completion")]
+            completion_selection: 0,
+            #[cfg(feature = "completion")]
+            current_suggestions: Vec::new(),
         }
     }
 
@@ -277,6 +286,61 @@ where
     }
 }
 
+#[cfg(feature = "completion")]
+impl<T> Input<'_, T> {
+    fn render_suggestions(
+        &mut self,
+        term: &Term,
+        render: &mut TermThemeRenderer,
+        position: usize,
+        prompt_len: usize,
+    ) -> Result<()> {
+        // Move to position after input
+        term.write_line("")?;
+
+        // Draw suggestions
+        for (idx, suggestion) in self.current_suggestions.iter().enumerate() {
+            render.select_prompt_item(suggestion, idx == self.completion_selection)?;
+        }
+
+        // Return cursor to input position
+        term.move_cursor_up(self.current_suggestions.len() + 1)?;
+        let line_size = term.size().1 as usize;
+        term.move_cursor_right((position + prompt_len) % line_size)?;
+
+        Ok(())
+    }
+
+    fn clear_suggestions(&mut self, term: &Term, position: usize, prompt_len: usize) -> Result<()> {
+        if !self.current_suggestions.is_empty() {
+            // Move past input
+            term.move_cursor_down(1)?;
+
+            // Clear each suggestion line
+            for _ in 0..self.current_suggestions.len() {
+                term.clear_line()?;
+                term.move_cursor_down(1)?;
+            }
+
+            // Return to input position
+            term.move_cursor_up(self.current_suggestions.len() + 1)?;
+            let line_size = term.size().1 as usize;
+            let col = (position + prompt_len) % line_size;
+            term.move_cursor_right(col)?;
+
+            if let Some(suggestion) = self.current_suggestions.get(0) {
+                if suggestion.len() > col {
+                    // hack: when suggestion wraps 2 lines, we can't clear line 2 as line 2 has content that we don't want to clear.
+                    // so idea is to insert a dot at the end of the line and clear it.
+                    term.write_str(".")?;
+                    term.clear_chars(1)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 impl<T> Input<'_, T>
 where
     T: Clone + ToString + FromStr,
@@ -353,6 +417,38 @@ where
                             term.move_cursor_right((position + prompt_len) % line_size)?;
                         }
 
+                        #[cfg(feature = "completion")]
+                        {
+                            // if suggestions are displayed, clear them
+                            if !self.current_suggestions.is_empty() {
+                                self.clear_suggestions(&term, position, prompt_len)?;
+                                self.current_suggestions.clear();
+                                term.show_cursor()?;
+                                term.flush()?;
+                            }
+                            if let Some(completion) = &self.completion {
+                                // now based on current text, display the suggestions.
+                                let input: String = chars.clone().into_iter().collect();
+                                let matches: Vec<_> =
+                                    completion.get_suggestions(&input).into_iter().collect();
+
+                                if !matches.is_empty() {
+                                    // Save the number of suggestions
+                                    self.current_suggestions = matches;
+                                    self.completion_selection = 0;
+
+                                    // Display suggestions
+                                    self.render_suggestions(
+                                        &term,
+                                        &mut render,
+                                        position,
+                                        prompt_len,
+                                    )?;
+                                    term.flush()?;
+                                }
+                            }
+                        }
+
                         term.flush()?;
                     }
                     Key::Char(chr) if !chr.is_ascii_control() => {
@@ -363,6 +459,38 @@ where
                         term.write_str(&tail)?;
                         term.move_cursor_left(tail.chars().count() - 1)?;
                         term.flush()?;
+
+                        #[cfg(feature = "completion")]
+                        {
+                            // if suggestions are displayed, clear them
+                            if !self.current_suggestions.is_empty() {
+                                self.clear_suggestions(&term, position, prompt_len)?;
+                                self.current_suggestions.clear();
+                                term.show_cursor()?;
+                                term.flush()?;
+                            }
+                            if let Some(completion) = &self.completion {
+                                // now based on current text, display the suggestions.
+                                let input: String = chars.clone().into_iter().collect();
+                                let matches: Vec<_> =
+                                    completion.get_suggestions(&input).into_iter().collect();
+
+                                if !matches.is_empty() {
+                                    // Save the number of suggestions
+                                    self.current_suggestions = matches;
+                                    self.completion_selection = 0;
+
+                                    // Display suggestions
+                                    self.render_suggestions(
+                                        &term,
+                                        &mut render,
+                                        position,
+                                        prompt_len,
+                                    )?;
+                                    term.flush()?;
+                                }
+                            }
+                        }
                     }
                     Key::ArrowLeft if position > 0 => {
                         if (position + prompt_len) % term.size().1 as usize == 0 {
@@ -472,21 +600,126 @@ where
                         term.flush()?;
                     }
                     #[cfg(feature = "completion")]
-                    Key::ArrowRight | Key::Tab => {
+                    Key::Escape => {
+                        if !self.current_suggestions.is_empty() {
+                            self.clear_suggestions(&term, position, prompt_len)?;
+                            self.current_suggestions.clear();
+                            term.show_cursor()?;
+                            term.flush()?;
+                        }
+                    }
+                    #[cfg(feature = "completion")]
+                    Key::Tab => {
                         if let Some(completion) = &self.completion {
-                            let input: String = chars.clone().into_iter().collect();
-                            if let Some(x) = completion.get(&input) {
-                                term.clear_chars(chars.len())?;
-                                chars.clear();
-                                position = 0;
-                                for ch in x.chars() {
-                                    chars.insert(position, ch);
-                                    position += 1;
+                            if !self.current_suggestions.is_empty() {
+                                // Select current suggestion
+                                let selected = &self.current_suggestions[self.completion_selection];
+
+                                // we can't remove all the chars, we've to remove only the chars for which the suggestion is
+                                // eg. terminal input: @fi
+                                // eg. selected suggestion: @file
+                                // we remove 3 chars: @fi
+                                // but what if we've some character before it.
+                                // eg. terminal input: this is file @fi
+                                // eg. selected suggestion: @file
+                                // we remove 3 chars: @fi
+                                // final output will be: this is file @file
+                                // Find the position of the last trigger character
+                                // Find the position of the last trigger character in the chars vector
+
+                                // TODO: we've hardcoded this, make it dynamic depending on the trigger character
+                                if let Some(pos) = chars.iter().rposition(|&c| c == '@' || c == '/')
+                                {
+                                    // Calculate the number of characters to remove
+                                    let chars_to_remove = chars.len() - pos; // This will include the trigger character and the input after it
+                                    term.clear_chars(chars_to_remove)?; // Clear only the relevant characters
+                                    chars.truncate(pos); // Remove the characters from the chars vector
                                 }
-                                term.write_str(&x)?;
+
+                                // Insert the selected completion
+                                chars.extend(selected.chars());
+                                position = chars.len();
+
+                                // Display the new input
+                                term.write_str(selected)?;
+
+                                // Clear suggestions and restore cursor
+                                self.clear_suggestions(&term, position, prompt_len)?;
+                                self.current_suggestions.clear();
+                                term.show_cursor()?;
                                 term.flush()?;
+                            } else {
+                                let input: String = chars.clone().into_iter().collect();
+                                let matches: Vec<_> =
+                                    completion.get_suggestions(&input).into_iter().collect();
+
+                                if !matches.is_empty() {
+                                    // Save the number of suggestions
+                                    self.current_suggestions = matches;
+                                    self.completion_selection = 0;
+
+                                    // Display suggestions
+                                    self.render_suggestions(
+                                        &term,
+                                        &mut render,
+                                        position,
+                                        prompt_len,
+                                    )?;
+                                    term.flush()?;
+                                }
                             }
                         }
+                    }
+                    #[cfg(feature = "completion")]
+                    Key::ArrowDown => {
+                        if !self.current_suggestions.is_empty() {
+                            // Update selection
+                            self.completion_selection =
+                                (self.completion_selection + 1) % self.current_suggestions.len();
+                            // Redraw suggestions
+                            self.render_suggestions(&term, &mut render, position, prompt_len)?;
+                            term.flush()?;
+                        }
+                    }
+                    #[cfg(feature = "completion")]
+                    Key::ArrowUp => {
+                        if !self.current_suggestions.is_empty() {
+                            // Update selection
+                            self.completion_selection = if self.completion_selection == 0 {
+                                self.current_suggestions.len() - 1
+                            } else {
+                                self.completion_selection - 1
+                            };
+                            // Redraw suggestions
+                            self.render_suggestions(&term, &mut render, position, prompt_len)?;
+                            term.flush()?;
+                        }
+                    }
+                    #[cfg(feature = "completion")]
+                    Key::Enter if !self.current_suggestions.is_empty() => {
+                        let selected = &self.current_suggestions[self.completion_selection];
+
+                        if let Some(pos) = chars.iter().rposition(|&c| c == '@' || c == '/') {
+                            // Calculate the number of characters to remove
+                            let chars_to_remove = chars.len() - pos; // This will include the trigger character and the input after it
+                            term.clear_chars(chars_to_remove)?; // Clear only the relevant characters
+                            chars.truncate(pos); // Remove the characters from the chars vector
+                        }
+
+                        // Insert the selected completion
+                        for ch in selected.chars() {
+                            chars.push(ch);
+                        }
+                        position = chars.len();
+
+                        // Display the new input
+                        term.write_str(selected)?;
+
+                        // Clear suggestions and restore cursor
+                        self.clear_suggestions(&term, position, prompt_len)?;
+                        self.current_suggestions.clear();
+                        term.show_cursor()?;
+                        term.flush()?;
                     }
                     #[cfg(feature = "history")]
                     Key::ArrowUp => {

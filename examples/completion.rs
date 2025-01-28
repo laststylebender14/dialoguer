@@ -1,12 +1,12 @@
 use dialoguer::{theme::ColorfulTheme, Completion, Input};
 
 fn main() {
-    println!("Use the Right arrow or Tab to complete your command");
+    println!("Type to search. Use Tab to complete, Up/Down arrows to navigate suggestions.");
 
     let completion = MyCompletion::default();
 
     Input::<String>::with_theme(&ColorfulTheme::default())
-        .with_prompt("dialoguer")
+        .with_prompt("fruit")
         .completion_with(&completion)
         .interact_text()
         .unwrap();
@@ -23,24 +23,21 @@ impl Default for MyCompletion {
                 "orange".to_string(),
                 "apple".to_string(),
                 "banana".to_string(),
+                "apricot".to_string(),
+                "avocado".to_string(),
             ],
         }
     }
 }
 
 impl Completion for MyCompletion {
-    /// Simple completion implementation based on substring
-    fn get(&self, input: &str) -> Option<String> {
-        let matches = self
-            .options
+    fn get_suggestions(&self, input: &str) -> Vec<String> {
+        self.options
             .iter()
             .filter(|option| option.starts_with(input))
-            .collect::<Vec<_>>();
-
-        if matches.len() == 1 {
-            Some(matches[0].to_string())
-        } else {
-            None
-        }
+            .cloned()
+            .collect()
     }
+
+    // The default implementation from the trait will be used for get()
 }

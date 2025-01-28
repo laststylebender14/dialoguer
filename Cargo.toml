@@ -52,6 +52,10 @@ required-features = ["history"]
 name = "completion"
 required-features = ["completion"]
 
+[[example]]
+name = "multi_completion"
+required-features = ["completion"]
+
 [workspace.metadata.workspaces]
 no_individual_tags = true
 
