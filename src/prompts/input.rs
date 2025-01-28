@@ -324,6 +324,9 @@ impl<T> Input<'_, T> {
             // Return to input position
             term.move_cursor_up(self.current_suggestions.len() + 1)?;
             let line_size = term.size().1 as usize;
+            if (position + prompt_len) % line_size == 0 {
+                term.move_cursor_down(1)?;
+            } 
             term.move_cursor_right((position + prompt_len) % line_size)?;
         }
         Ok(())
