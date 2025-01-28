@@ -418,12 +418,6 @@ where
                             iter::once(&chr).chain(chars[position..].iter()).collect();
                         term.write_str(&tail)?;
                         term.move_cursor_left(tail.chars().count() - 1)?;
-
-                        // move to the next line if we are on the last column
-                        if (position + prompt_len) % term.size().1 as usize == 0 {
-                            term.move_cursor_down(1)?;
-                            term.move_cursor_left(term.size().1 as usize)?;
-                        }
                         term.flush()?;
                     }
                     Key::ArrowLeft if position > 0 => {
