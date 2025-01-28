@@ -294,9 +294,6 @@ impl<T> Input<'_, T> {
         position: usize,
         prompt_len: usize,
     ) -> Result<()> {
-        // Clear any existing suggestions
-        self.clear_suggestions(term, position, prompt_len)?;
-
         // Move to position after input
         term.write_line("")?;
 
