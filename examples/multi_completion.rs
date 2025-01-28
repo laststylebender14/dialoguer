@@ -57,6 +57,10 @@ impl Completion for MyCompletion {
 
     fn get_suggestions(&self, input: &str) -> Vec<String> {
         let (suggestion, trigger_char) = MyCompletion::find_last_trigger_position(input);
+        if suggestion.is_empty() {
+            return vec![];
+        }
+
         let result = match trigger_char {
             '@' => self
                 .files
@@ -70,7 +74,7 @@ impl Completion for MyCompletion {
                 .filter(|cmd| cmd.starts_with(suggestion))
                 .cloned()
                 .collect(),
-            _ => self.commands.clone(),
+            _ => vec![],
         };
 
         result
