@@ -417,6 +417,41 @@ where
                             term.move_cursor_right((position + prompt_len) % line_size)?;
                         }
 
+                        #[cfg(feature = "completion")]
+                        {
+                            // if suggestions are displayed, clear them
+                            if !self.current_suggestions.is_empty() {
+                                self.clear_suggestions(&term, position, prompt_len)?;
+                                self.current_suggestions.clear();
+                                term.show_cursor()?;
+                                term.flush()?;
+                            }
+                            if let Some(completion) = &self.completion {
+                                // now based on current text, display the suggestions.
+                                let input: String = chars.clone().into_iter().collect();
+                                let matches: Vec<_> =
+                                    completion.get_suggestions(&input).into_iter().collect();
+
+                                if !matches.is_empty() {
+                                    // Hide cursor during suggestion display
+                                    term.hide_cursor()?;
+
+                                    // Save the number of suggestions
+                                    self.current_suggestions = matches;
+                                    self.completion_selection = 0;
+
+                                    // Display suggestions
+                                    self.render_suggestions(
+                                        &term,
+                                        &mut render,
+                                        position,
+                                        prompt_len,
+                                    )?;
+                                    term.flush()?;
+                                }
+                            }
+                        }
+
                         term.flush()?;
                     }
                     Key::Char(chr) if !chr.is_ascii_control() => {
