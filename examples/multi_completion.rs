@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use dialoguer::{theme::ColorfulTheme, Completion, Input};
 
 fn main() {
@@ -15,21 +17,41 @@ fn main() {
 }
 
 struct MyCompletion {
-    options: Vec<String>,
+    files: Vec<String>,
+    commands: Vec<String>,
 }
 
 impl MyCompletion {
     fn new() -> Self {
         Self {
-            options: vec![
-                "orange".to_string(),
-                "apple".to_string(),
-                "banana".to_string(),
-                "apricot".to_string(),
-                "avocado".to_string(),
+            files: vec![
+                "file1".to_string(),
+                "file2".to_string(),
+                "file3".to_string(),
             ],
+            commands: vec!["list".to_string(), "search".to_string(), "quit".to_string()],
         }
     }
+}
+
+impl MyCompletion {
+    fn find_last_trigger_position(input: &str) -> (&str, char) {
+        if let Some(pos) = input.rfind('@').or_else(|| input.rfind('/')) {
+            let trigger_char = input.chars().nth(pos).unwrap();
+            let suggestion = &input[pos+1..];
+            (suggestion, trigger_char)
+        } else {
+            // Return an empty suggestion and a default trigger character if none found
+            ("", ' ') // or any other default character
+        }
+    }
+}
+
+#[derive(Debug)]
+struct Data {
+    suggestion: String,
+    trigger_char: char,
+    result: Vec<String>,
 }
 
 impl Completion for MyCompletion {
@@ -43,10 +65,66 @@ impl Completion for MyCompletion {
     }
 
     fn get_suggestions(&self, input: &str) -> Vec<String> {
-        self.options
-            .iter()
-            .filter(|option| option.starts_with(input))
-            .cloned()
-            .collect()
+        let (suggestion, trigger_char) = MyCompletion::find_last_trigger_position(input);
+        let result = match trigger_char {
+            '@' => self
+                .files
+                .iter()
+                .filter(|file| file.starts_with(suggestion))
+                .cloned()
+                .collect(),
+            '/' => self
+                .commands
+                .iter()
+                .filter(|cmd| cmd.starts_with(suggestion))
+                .cloned()
+                .collect(),
+            _ => self.commands.clone(),
+        };
+
+        let data = Data {
+            suggestion: suggestion.to_string(),
+            trigger_char,
+            result: result.clone(),
+        };
+
+        let mut fs = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .append(true)
+            .open("log.md")
+            .unwrap();
+        fs.write_all(format!("{:#?}\n", data).as_bytes()).unwrap();
+
+        result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_find_last_trigger_position() {
+        let input = "Hello @world";
+        let (suggestion, trigger_char) = MyCompletion::find_last_trigger_position(input);
+        assert_eq!(suggestion, "world");
+        assert_eq!(trigger_char, '@');
+    }
+
+    #[test]
+    fn test_find_last_trigger_position1() {
+        let input = "Hello @";
+        let (suggestion, trigger_char) = MyCompletion::find_last_trigger_position(input);
+        assert_eq!(suggestion, "");
+        assert_eq!(trigger_char, '@');
+    }
+
+    #[test]
+    fn test_find_last_trigger_command() {
+        let input = "Hello /s";
+        let (suggestion, trigger_char) = MyCompletion::find_last_trigger_position(input);
+        assert_eq!(suggestion, "s");
+        assert_eq!(trigger_char, '/');
     }
 }
