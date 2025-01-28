@@ -1,5 +1,3 @@
-use std::io::Write;
-
 use dialoguer::{theme::ColorfulTheme, Completion, Input};
 
 fn main() {
@@ -38,20 +36,13 @@ impl MyCompletion {
     fn find_last_trigger_position(input: &str) -> (&str, char) {
         if let Some(pos) = input.rfind('@').or_else(|| input.rfind('/')) {
             let trigger_char = input.chars().nth(pos).unwrap();
-            let suggestion = &input[pos+1..];
+            let suggestion = &input[pos + 1..];
             (suggestion, trigger_char)
         } else {
             // Return an empty suggestion and a default trigger character if none found
             ("", ' ') // or any other default character
         }
     }
-}
-
-#[derive(Debug)]
-struct Data {
-    suggestion: String,
-    trigger_char: char,
-    result: Vec<String>,
 }
 
 impl Completion for MyCompletion {
@@ -81,20 +72,6 @@ impl Completion for MyCompletion {
                 .collect(),
             _ => self.commands.clone(),
         };
-
-        let data = Data {
-            suggestion: suggestion.to_string(),
-            trigger_char,
-            result: result.clone(),
-        };
-
-        let mut fs = std::fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .append(true)
-            .open("log.md")
-            .unwrap();
-        fs.write_all(format!("{:#?}\n", data).as_bytes()).unwrap();
 
         result
     }
