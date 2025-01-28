@@ -536,6 +536,15 @@ where
                         term.flush()?;
                     }
                     #[cfg(feature = "completion")]
+                    Key::Escape => {
+                        if !self.current_suggestions.is_empty() {
+                            self.clear_suggestions(&term, position, prompt_len)?;
+                            self.current_suggestions.clear();
+                            term.show_cursor()?;
+                            term.flush()?;
+                        }
+                    }
+                    #[cfg(feature = "completion")]
                     Key::Tab => {
                         if let Some(completion) = &self.completion {
                             if !self.current_suggestions.is_empty() {
