@@ -433,9 +433,6 @@ where
                                     completion.get_suggestions(&input).into_iter().collect();
 
                                 if !matches.is_empty() {
-                                    // Hide cursor during suggestion display
-                                    term.hide_cursor()?;
-
                                     // Save the number of suggestions
                                     self.current_suggestions = matches;
                                     self.completion_selection = 0;
@@ -479,9 +476,6 @@ where
                                     completion.get_suggestions(&input).into_iter().collect();
 
                                 if !matches.is_empty() {
-                                    // Hide cursor during suggestion display
-                                    term.hide_cursor()?;
-
                                     // Save the number of suggestions
                                     self.current_suggestions = matches;
                                     self.completion_selection = 0;
@@ -660,9 +654,6 @@ where
                                     completion.get_suggestions(&input).into_iter().collect();
 
                                 if !matches.is_empty() {
-                                    // Hide cursor during suggestion display
-                                    term.hide_cursor()?;
-
                                     // Save the number of suggestions
                                     self.current_suggestions = matches;
                                     self.completion_selection = 0;
