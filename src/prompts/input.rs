@@ -307,7 +307,8 @@ impl<T> Input<'_, T> {
 
         // Return cursor to input position
         term.move_cursor_up(self.current_suggestions.len() + 1)?;
-        term.move_cursor_right(position + prompt_len)?;
+        let line_size = term.size().1 as usize;
+        term.move_cursor_right((position + prompt_len) % line_size)?;
 
         Ok(())
     }
@@ -325,7 +326,8 @@ impl<T> Input<'_, T> {
 
             // Return to input position
             term.move_cursor_up(self.current_suggestions.len() + 1)?;
-            term.move_cursor_right(position + prompt_len)?;
+            let line_size = term.size().1 as usize;
+            term.move_cursor_right((position + prompt_len) % line_size)?;
         }
         Ok(())
     }
